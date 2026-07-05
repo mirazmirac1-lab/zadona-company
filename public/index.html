@@ -426,7 +426,7 @@
 
   <main>
     <div class="card" id="changePasswordCard" style="display:none;">
-      <div class="section-title">Badilisha Nywila</div>
+      <div class="section-title">Badilisha Nywila <span style="font-size:0.8rem;color:#8a8470;">(si lazima)</span></div>
       <div class="field">
         <label>Nywila ya sasa</label>
         <input type="password" id="currentPassword" placeholder="Ingiza nywila ya sasa">
@@ -499,6 +499,26 @@
       <div class="card">
         <div class="section-title">Akaunti Zinazosubiri Approval</div>
         <div id="pendingAccountsList"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Kipa Bidhaa</div>
+        <div class="field">
+          <label>Weka kwa</label>
+          <select id="assignScopeSelect">
+            <option value="agent">Agent mmoja</option>
+            <option value="company">Kampuni nzima</option>
+          </select>
+        </div>
+        <div class="field" id="assignAgentField">
+          <label>Chagua Agent</label>
+          <select id="assignAgentSelect"></select>
+        </div>
+        <div class="field">
+          <label>Chagua Bidhaa</label>
+          <select id="assignItemSelect"></select>
+        </div>
+        <button class="btn-save" id="assignInventoryBtn" style="width:100%;">Hifadhi Ugawaji</button>
       </div>
 
       <div class="card">
@@ -782,6 +802,14 @@
     els.sumItems.textContent = inventory.length;
   }
 
+  function populateAssignmentSelectors(){
+    const agentSelect = document.getElementById('assignAgentSelect');
+    const itemSelect = document.getElementById('assignItemSelect');
+    const agentsForSelect = agents.filter(a => a.role === 'agent');
+    agentSelect.innerHTML = agentsForSelect.map(a => `<option value="${a.id}">${escapeHtml(a.fullName)}</option>`).join('');
+    itemSelect.innerHTML = inventory.map(it => `<option value="${it.id}">${escapeHtml(it.name)} (${it.qty})</option>`).join('');
+  }
+
   function renderInventory(){
     if(inventory.length === 0){
       els.inventoryList.innerHTML = '<div class="empty">Hujaongeza bidhaa yoyote bado.<br>Bonyeza "+ Ongeza" kuanza.</div>';
@@ -1028,6 +1056,7 @@
     renderReportSummary();
     renderCompanyInfo();
     populateSaleItemSelect();
+    populateAssignmentSelectors();
     renderTabs();
   }
 
@@ -1126,6 +1155,23 @@
       document.getElementById('confirmPassword').value='';
       showToast('Nywila imebadilishwa');
     }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('assignInventoryBtn').addEventListener('click', async ()=>{
+    const scope = document.getElementById('assignScopeSelect').value;
+    const agentId = document.getElementById('assignAgentSelect').value;
+    const itemId = document.getElementById('assignItemSelect').value;
+    if(!itemId){ showToast('Chagua bidhaa'); return; }
+    if(scope === 'agent' && !agentId){ showToast('Chagua agent'); return; }
+    try{
+      await api(`/inventory/${itemId}/assign`, { method:'PATCH', body: JSON.stringify({ agentId, scope }) });
+      await loadAll();
+      showToast(scope === 'company' ? 'Bidhaa imewekwa kwa kampuni' : 'Bidhaa imepewa agent');
+    }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('assignScopeSelect').addEventListener('change', ()=>{
+    document.getElementById('assignAgentField').style.display = document.getElementById('assignScopeSelect').value === 'agent' ? 'block' : 'none';
   });
 
   document.getElementById('createAgentBtn').addEventListener('click', async ()=>{

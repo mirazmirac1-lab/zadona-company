@@ -325,6 +325,37 @@ app.delete('/api/inventory/:id', requireAuth, async (req, res) => {
   }
 });
 
+app.patch('/api/inventory/:id/assign', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter' || user.approval_status !== 'approved') {
+      return res.status(403).json({ error: 'Only approved headquarter can assign inventory' });
+    }
+    const { agentId, scope } = req.body || {};
+    const normalizedAgentId = agentId ? Number(agentId) : null;
+    const normalizedScope = scope === 'company' ? 'company' : 'agent';
+
+    if (normalizedScope === 'agent' && normalizedAgentId !== null) {
+      const agentRes = await pool.query('SELECT id, role FROM users WHERE id = $1', [normalizedAgentId]);
+      if (agentRes.rows.length === 0 || agentRes.rows[0].role !== 'agent') {
+        return res.status(400).json({ error: 'Agent si sahihi' });
+      }
+    }
+
+    const ownerId = normalizedScope === 'company' ? null : normalizedAgentId;
+    const { rows } = await pool.query(
+      'UPDATE inventory SET owner_id = $1 WHERE id = $2 RETURNING *',
+      [ownerId, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Bidhaa haipo' });
+    res.json(mapItemRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupa agent bidhaa' });
+  }
+});
+
 // ---------- Sales routes ----------
 app.get('/api/sales', requireAuth, async (req, res) => {
   try {
