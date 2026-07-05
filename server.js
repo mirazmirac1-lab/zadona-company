@@ -133,11 +133,25 @@ app.post('/api/login', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/users', requireAuth, async (req, res) => {
+app.post('/api/users', async (req, res) => {
   try {
-    const user = await getAuthenticatedUser(req);
-    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
-    if (user.role !== 'headquarter' || user.approval_status !== 'approved') return res.status(403).json({ error: 'Only approved headquarter can create accounts' });
+    const authHeader = req.headers.authorization || '';
+    let actingUser = null;
+
+    if (authHeader) {
+      const [scheme, encoded] = authHeader.split(' ');
+      if (scheme === 'Basic' && encoded) {
+        const [phone, password] = Buffer.from(encoded, 'base64').toString('utf8').split(':');
+        if (phone && password) {
+          const { rows } = await pool.query(
+            'SELECT * FROM users WHERE phone = $1 AND password_hash = $2',
+            [phone, hashPassword(password)]
+          );
+          actingUser = rows[0] || null;
+        }
+      }
+    }
+
     const { fullName, phone, password, role = 'agent' } = req.body;
     const trimmedName = String(fullName || '').trim();
     if (!trimmedName || !phone || !password) {
@@ -146,7 +160,14 @@ app.post('/api/users', requireAuth, async (req, res) => {
     if (!['headquarter', 'agent'].includes(role)) {
       return res.status(400).json({ error: 'Role is not supported' });
     }
-    const approvalStatus = (role === 'headquarter' && isZaudiaAccount(trimmedName)) ? 'approved' : 'pending';
+
+    const isSelfRegistration = !actingUser;
+    const approvalStatus = isSelfRegistration ? 'approved' : ((role === 'headquarter' && isZaudiaAccount(trimmedName)) ? 'approved' : 'pending');
+
+    if (!isSelfRegistration && (actingUser.role !== 'headquarter' || actingUser.approval_status !== 'approved')) {
+      return res.status(403).json({ error: 'Only approved headquarter can create accounts' });
+    }
+
     const { rows } = await pool.query(
       'INSERT INTO users (full_name, phone, password_hash, role, approval_status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [trimmedName, phone, hashPassword(password), role, approvalStatus]
