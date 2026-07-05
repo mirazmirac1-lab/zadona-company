@@ -1,0 +1,34 @@
+{
+  "name": "Zadona - Sales & Inventory",
+  "short_name": "Zadona",
+  "description": "Sales and inventory management system for Zadona",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#141312",
+  "background_color": "#f6f3ea",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23141312' width='192' height='192'/><text x='50%' y='50%' font-size='100' font-weight='bold' fill='%23e7a83c' dominant-baseline='middle' text-anchor='middle' font-family='Georgia, serif'>Z</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%23141312' width='512' height='512'/><text x='50%' y='50%' font-size='300' font-weight='bold' fill='%23e7a83c' dominant-baseline='middle' text-anchor='middle' font-family='Georgia, serif'>Z</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%23f6f3ea' width='540' height='720'/><rect fill='%23141312' width='540' height='80'/><text x='270' y='40' font-size='40' fill='%23fff' text-anchor='middle' font-family='Georgia, serif'>Zadona</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ]
+}
