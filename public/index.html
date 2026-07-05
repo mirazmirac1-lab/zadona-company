@@ -757,7 +757,7 @@
       ? `${currentUser.fullName} • ${currentUser.role === 'headquarter' ? 'Headquarter' : 'Agent'}`
       : 'Hujaingia';
     els.loginModalBg.classList.toggle('hidden', !!currentUser);
-    els.changePasswordCard.style.display = currentUser ? 'block' : 'none';
+    els.changePasswordCard.style.display = 'none';
   }
 
   function renderTabs(){
