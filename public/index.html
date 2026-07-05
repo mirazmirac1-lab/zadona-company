@@ -335,6 +335,30 @@
   }
   .btn-cancel{ background:var(--paper-2); color:var(--ink); }
   .btn-save{ background:var(--green-dark); color:#fff; }
+  .user-bar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:12px;
+    gap:10px;
+  }
+  .user-status{
+    font-size:0.76rem;
+    color:rgba(255,255,255,0.8);
+    background:rgba(255,255,255,0.1);
+    border:1px solid rgba(255,255,255,0.14);
+    border-radius:999px;
+    padding:6px 10px;
+  }
+  .logout-btn{
+    border:none;
+    background:var(--rust);
+    color:#fff;
+    border-radius:999px;
+    padding:7px 10px;
+    font-size:0.74rem;
+    font-weight:600;
+  }
 
   .hint{
     font-size:0.72rem;
@@ -385,12 +409,17 @@
         <p class="value" id="sumItems">0</p>
       </div>
     </div>
+    <div class="user-bar">
+      <div class="user-status" id="userStatus">Hujaingia</div>
+      <button class="logout-btn" id="logoutBtn" style="display:none;">Ondoka</button>
+    </div>
   </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="sales">Mauzo</button>
     <button class="tab-btn" data-tab="inventory">Bidhaa</button>
     <button class="tab-btn" data-tab="debts">Madeni</button>
+    <button class="tab-btn" data-tab="hq" style="display:none;">Headquarter</button>
   </nav>
 
   <main>
@@ -408,10 +437,118 @@
       <p class="section-title">Wateja Wenye Deni</p>
       <div id="debtsList"></div>
     </section>
+
+    <section id="tab-hq" style="display:none;">
+      <p class="section-title">Headquarter</p>
+      <div class="card">
+        <div class="field">
+          <label>Jina la Agent</label>
+          <input type="text" id="agentFullName" placeholder="Mfano: Asha Mohamed">
+        </div>
+        <div class="field">
+          <label>Namba ya Simu</label>
+          <input type="text" id="agentPhone" placeholder="2557xx xxx xxx">
+        </div>
+        <div class="field">
+          <label>Nywila</label>
+          <input type="password" id="agentPassword" placeholder="Ingiza nywila">
+        </div>
+        <button class="btn-save" id="createAgentBtn" style="width:100%;">Unda Agent</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Taarifa za Kampuni</div>
+        <div class="field">
+          <label>Jina la Kampuni</label>
+          <input type="text" id="companyName" placeholder="Zadona">
+        </div>
+        <div class="field">
+          <label>Anwani</label>
+          <input type="text" id="companyAddress" placeholder="Anwani">
+        </div>
+        <div class="field">
+          <label>Simu</label>
+          <input type="text" id="companyPhone" placeholder="2557xx xxx xxx">
+        </div>
+        <div class="field">
+          <label>Mmiliki / Msimamizi</label>
+          <input type="text" id="companyOwner" placeholder="Jina la mmiliki">
+        </div>
+        <div class="field">
+          <label>Maelezo ya ziada</label>
+          <input type="text" id="companyNotes" placeholder="Maelezo">
+        </div>
+        <button class="btn-save" id="saveCompanyBtn" style="width:100%;">Hifadhi Taarifa ya Kampuni</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Matumizi ya Kampuni</div>
+        <div class="field">
+          <label>Maelezo ya matumizi</label>
+          <input type="text" id="expenseDescription" placeholder="Mfano: Ununuzi wa bidhaa">
+        </div>
+        <div class="field">
+          <label>Kiasi (TSh)</label>
+          <input type="number" id="expenseAmount" placeholder="0" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label>Kategoria</label>
+          <input type="text" id="expenseCategory" placeholder="Resources">
+        </div>
+        <div class="field">
+          <label>Tarehe</label>
+          <input type="date" id="expenseDate">
+        </div>
+        <div class="field">
+          <label>Maelezo</label>
+          <input type="text" id="expenseNotes" placeholder="Maelezo ya ziada">
+        </div>
+        <button class="btn-save" id="saveExpenseBtn" style="width:100%;">Rekodi Matumizi</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Muhtasari wa Matumizi</div>
+        <div id="expenseSummary"></div>
+        <div id="expensesList"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Ripoti ya Faida na Hasara</div>
+        <div id="reportSummary"></div>
+      </div>
+
+      <div id="agentsList"></div>
+      <div class="card" id="agentInventoryPanel" style="display:none;">
+        <div class="section-title">Taarifa za Agent</div>
+        <div id="selectedAgentDetails"></div>
+        <div id="agentInventoryList"></div>
+      </div>
+    </section>
   </main>
 
   <div class="fab">
     <button id="fabBtn">+ Ongeza</button>
+  </div>
+
+  <div class="modal-bg" id="loginModalBg">
+    <div class="modal">
+      <h2>Ingia kwenye mfumo</h2>
+      <div class="field">
+        <label>Jina kamili</label>
+        <input type="text" id="loginFullName" placeholder="Jina kamili">
+      </div>
+      <div class="field">
+        <label>Namba ya Simu</label>
+        <input type="text" id="loginPhone" placeholder="2557xx xxx xxx">
+      </div>
+      <div class="field">
+        <label>Nywila</label>
+        <input type="password" id="loginPassword" placeholder="Ingiza nywila">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-save" id="loginSave" style="width:100%;">Ingia</button>
+      </div>
+    </div>
   </div>
 
   <!-- Add Item Modal -->
@@ -453,12 +590,12 @@
         <button class="sel" id="payCash" type="button">Amelipa Pesa</button>
         <button id="payDebt" type="button">Ana Deni</button>
       </div>
-      <div id="debtorField" style="display:none;">
+      <div id="debtorField">
         <div class="field">
           <label>Jina la Mteja</label>
           <input type="text" id="debtorName" placeholder="Mfano: Juma Hassan">
         </div>
-        <div class="field">
+        <div class="field" id="debtorPhoneField" style="display:none;">
           <label>Namba ya Simu (si lazima)</label>
           <input type="text" id="debtorPhone" placeholder="07xx xxx xxx">
         </div>
@@ -481,6 +618,14 @@
 
   let inventory = []; // {id, name, qty, price}
   let sales = [];     // {id, itemId, itemName, qty, total, paidAmount, debtorName, debtorPhone, date}
+  let currentUser = null;
+  let auth = null;
+  let agents = [];
+  let selectedAgent = null;
+  let selectedAgentInventory = [];
+  let company = null;
+  let expenses = [];
+  let reportSummary = { revenue: 0, expenses: 0, profit: 0 };
 
   const els = {
     salesList: document.getElementById('salesList'),
@@ -490,6 +635,9 @@
     sumDebt: document.getElementById('sumDebt'),
     sumItems: document.getElementById('sumItems'),
     toast: document.getElementById('toast'),
+    userStatus: document.getElementById('userStatus'),
+    logoutBtn: document.getElementById('logoutBtn'),
+    loginModalBg: document.getElementById('loginModalBg')
   };
 
   function showToast(msg){
@@ -498,9 +646,13 @@
     setTimeout(()=> els.toast.classList.remove('show'), 1800);
   }
 
-  async function api(path, options){
+  async function api(path, options = {}){
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (auth) {
+      headers.Authorization = 'Basic ' + btoa(auth.phone + ':' + auth.password);
+    }
     const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       ...options
     });
     let body = null;
@@ -511,14 +663,48 @@
     return body;
   }
 
+  function renderAuthUI(){
+    const showHq = currentUser && currentUser.role === 'headquarter';
+    const hqBtn = document.querySelector('.tab-btn[data-tab="hq"]');
+    if (hqBtn) hqBtn.style.display = showHq ? 'block' : 'none';
+    if (!showHq) {
+      document.getElementById('tab-hq').style.display = 'none';
+      const active = document.querySelector('.tab-btn.active');
+      if (active && active.dataset.tab === 'hq') {
+        document.querySelector('.tab-btn[data-tab="sales"]').classList.add('active');
+      }
+    }
+    els.logoutBtn.style.display = currentUser ? 'inline-flex' : 'none';
+    els.userStatus.textContent = currentUser
+      ? `${currentUser.fullName} • ${currentUser.role === 'headquarter' ? 'Headquarter' : 'Agent'}`
+      : 'Hujaingia';
+    els.loginModalBg.classList.toggle('hidden', !!currentUser);
+  }
+
+  function renderTabs(){
+    renderAuthUI();
+  }
+
   async function loadAll(){
+    if (!currentUser) {
+      renderTabs();
+      return;
+    }
     try{
-      const [inv, sal] = await Promise.all([
+      const [inv, sal, users, companyRes, expensesRes, reportRes] = await Promise.all([
         api('/inventory'),
-        api('/sales')
+        api('/sales'),
+        currentUser.role === 'headquarter' ? api('/users') : Promise.resolve([]),
+        currentUser.role === 'headquarter' ? api('/company') : Promise.resolve({ company: null }),
+        currentUser.role === 'headquarter' ? api('/expenses') : Promise.resolve([]),
+        currentUser.role === 'headquarter' ? api('/reports/summary') : Promise.resolve({ revenue: 0, expenses: 0, profit: 0 })
       ]);
       inventory = inv;
       sales = sal;
+      agents = users || [];
+      company = companyRes && companyRes.company ? companyRes.company : null;
+      expenses = expensesRes || [];
+      reportSummary = reportRes || { revenue: 0, expenses: 0, profit: 0 };
     }catch(e){
       console.error(e);
       showToast('Imeshindwa kupakia data');
@@ -580,7 +766,7 @@
             <span class="badge ${isPaid ? 'paid':'debt'}">${isPaid ? 'Amelipa' : 'Deni'}</span>
           </div>
         </div>
-        ${!isPaid ? `<div class="meta" style="margin-top:6px;">Mteja: <strong>${escapeHtml(s.debtorName||'-')}</strong> &middot; Salio: <strong>${fmt(remaining)}</strong></div>` : ''}
+        <div class="meta" style="margin-top:6px;">Mteja: <strong>${escapeHtml(s.debtorName || '-')}</strong>${!isPaid ? ` &middot; Salio: <strong>${fmt(remaining)}</strong>` : ''}</div>
       </div>
     `;}).join('');
   }
@@ -627,12 +813,114 @@
     return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
+  function renderAgents(){
+    const container = document.getElementById('agentsList');
+    if (currentUser && currentUser.role === 'headquarter') {
+      if (agents.length === 0) {
+        container.innerHTML = '<div class="empty">Hakuna agents walioongezwa bado.</div>';
+        return;
+      }
+      container.innerHTML = agents.filter(a => a.role === 'agent').map(a => {
+        const agentInventoryCount = inventory.filter(it => String(it.ownerId) === String(a.id)).length;
+        const agentSalesCount = sales.filter(s => String(s.agentId) === String(a.id)).length;
+        return `
+          <div class="card">
+            <div class="item-row">
+              <div>
+                <div class="name">${escapeHtml(a.fullName)}</div>
+                <div class="meta">${escapeHtml(a.phone)}</div>
+                <div class="meta">Bidhaa: ${agentInventoryCount} • Mauzo: ${agentSalesCount}</div>
+              </div>
+              <button class="btn-save" onclick="dukaApp.viewAgentInventory('${a.id}')">Angalia Bidhaa</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      container.innerHTML = '';
+    }
+  }
+
+  function renderAgentInventory(){
+    const panel = document.getElementById('agentInventoryPanel');
+    const details = document.getElementById('selectedAgentDetails');
+    const list = document.getElementById('agentInventoryList');
+    if (!selectedAgent) {
+      panel.style.display = 'none';
+      return;
+    }
+    details.innerHTML = `<div class="meta">Agent: <strong>${escapeHtml(selectedAgent.fullName)}</strong> &middot; ${escapeHtml(selectedAgent.phone)}</div>`;
+    if (selectedAgentInventory.length === 0) {
+      list.innerHTML = '<div class="empty">Agent huyu hana bidhaa.</div>';
+    } else {
+      list.innerHTML = selectedAgentInventory.map(it => `
+        <div class="card">
+          <div class="item-row">
+            <div>
+              <div class="name">${escapeHtml(it.name)}</div>
+              <div class="meta">${fmt(it.price)} kwa kipande</div>
+            </div>
+            <div class="qty-pill ${it.qty <= 3 ? 'low' : ''}">${it.qty}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+    panel.style.display = 'block';
+  }
+
+  function renderExpenses(){
+    const summary = document.getElementById('expenseSummary');
+    const list = document.getElementById('expensesList');
+    const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    summary.innerHTML = `<div class="meta">Jumla ya matumizi: <strong>${fmt(total)}</strong></div>`;
+    if (expenses.length === 0) {
+      list.innerHTML = '<div class="empty">Hakuna matumizi yaliyorekodiwa bado.</div>';
+      return;
+    }
+    list.innerHTML = expenses.map(exp => `
+      <div class="card">
+        <div class="item-row">
+          <div>
+            <div class="name">${escapeHtml(exp.description)}</div>
+            <div class="meta">${escapeHtml(exp.category)} • ${new Date(exp.expenseDate).toLocaleDateString()}</div>
+            ${exp.notes ? `<div class="meta">${escapeHtml(exp.notes)}</div>` : ''}
+          </div>
+          <div class="amt">${fmt(exp.amount)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderReportSummary(){
+    const container = document.getElementById('reportSummary');
+    container.innerHTML = `
+      <div class="meta">Mapato: <strong>${fmt(reportSummary.revenue || 0)}</strong></div>
+      <div class="meta">Matumizi: <strong>${fmt(reportSummary.expenses || 0)}</strong></div>
+      <div class="meta">Faida/Hasara: <strong>${fmt(reportSummary.profit || 0)}</strong></div>
+    `;
+  }
+
+  function renderCompanyInfo(){
+    if (!company) return;
+    document.getElementById('companyName').value = company.companyName || '';
+    document.getElementById('companyAddress').value = company.address || '';
+    document.getElementById('companyPhone').value = company.phone || '';
+    document.getElementById('companyOwner').value = company.ownerName || '';
+    document.getElementById('companyNotes').value = company.notes || '';
+  }
+
   function renderAll(){
     renderSummary();
     renderInventory();
     renderSales();
     renderDebts();
+    renderAgents();
+    renderAgentInventory();
+    renderExpenses();
+    renderReportSummary();
+    renderCompanyInfo();
     populateSaleItemSelect();
+    renderTabs();
   }
 
   // Tabs
@@ -640,10 +928,102 @@
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['sales','inventory','debts'].forEach(t=>{
-        document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? 'block':'none';
+      ['sales','inventory','debts','hq'].forEach(t=>{
+        const panel = document.getElementById('tab-'+t);
+        if (panel) panel.style.display = (t===btn.dataset.tab) ? 'block':'none';
       });
     });
+  });
+
+  function logout(){
+    auth = null;
+    currentUser = null;
+    selectedAgent = null;
+    selectedAgentInventory = [];
+    agents = [];
+    inventory = [];
+    sales = [];
+    renderAll();
+    showToast('Umeondoka');
+  }
+
+  els.logoutBtn.addEventListener('click', logout);
+
+  // Login
+  document.getElementById('loginSave').addEventListener('click', async ()=>{
+    const fullName = document.getElementById('loginFullName').value.trim();
+    const phone = document.getElementById('loginPhone').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if(!phone || !password){ showToast('Jaza namba ya simu na nywila'); return; }
+    try{
+      auth = { phone, password };
+      const data = await api('/login', { method:'POST', body: JSON.stringify({ fullName }) });
+      currentUser = data.user;
+      els.loginModalBg.classList.add('hidden');
+      document.getElementById('loginFullName').value='';
+      document.getElementById('loginPhone').value='';
+      document.getElementById('loginPassword').value='';
+      await loadAll();
+      showToast('Umeingia kama ' + currentUser.fullName);
+    }catch(e){
+      auth = null;
+      currentUser = null;
+      renderAll();
+      showToast(e.message);
+    }
+  });
+
+  document.getElementById('createAgentBtn').addEventListener('click', async ()=>{
+    const fullName = document.getElementById('agentFullName').value.trim();
+    const phone = document.getElementById('agentPhone').value.trim();
+    const password = document.getElementById('agentPassword').value;
+    if(!fullName || !phone || !password){ showToast('Jaza jina, namba ya simu na nywila'); return; }
+    try{
+      await api('/users', { method:'POST', body: JSON.stringify({ fullName, phone, password, role:'agent' }) });
+      document.getElementById('agentFullName').value='';
+      document.getElementById('agentPhone').value='';
+      document.getElementById('agentPassword').value='';
+      await loadAll();
+      showToast('Agent imeundwa');
+    }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('saveCompanyBtn').addEventListener('click', async ()=>{
+    const payload = {
+      companyName: document.getElementById('companyName').value.trim(),
+      address: document.getElementById('companyAddress').value.trim(),
+      phone: document.getElementById('companyPhone').value.trim(),
+      ownerName: document.getElementById('companyOwner').value.trim(),
+      notes: document.getElementById('companyNotes').value.trim()
+    };
+    try{
+      const res = await api('/company', { method:'POST', body: JSON.stringify(payload) });
+      company = res.company;
+      renderCompanyInfo();
+      showToast('Taarifa ya kampuni zimehifadhiwa');
+    }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
+    const description = document.getElementById('expenseDescription').value.trim();
+    const amount = parseFloat(document.getElementById('expenseAmount').value);
+    const category = document.getElementById('expenseCategory').value.trim() || 'Resources';
+    const expenseDate = document.getElementById('expenseDate').value;
+    const notes = document.getElementById('expenseNotes').value.trim();
+    if(!description || !amount || amount <= 0){ showToast('Jaza maelezo na kiasi sahihi'); return; }
+    try{
+      await api('/expenses', {
+        method:'POST',
+        body: JSON.stringify({ description, amount, category, expenseDate, notes })
+      });
+      document.getElementById('expenseDescription').value='';
+      document.getElementById('expenseAmount').value='';
+      document.getElementById('expenseCategory').value='Resources';
+      document.getElementById('expenseDate').value='';
+      document.getElementById('expenseNotes').value='';
+      await loadAll();
+      showToast('Matumizi yamerekodiwa');
+    }catch(e){ showToast(e.message); }
   });
 
   // FAB behavior depends on active tab
@@ -704,7 +1084,7 @@
     payingCash = cash;
     document.getElementById('payCash').classList.toggle('sel', cash);
     document.getElementById('payDebt').classList.toggle('sel', !cash);
-    document.getElementById('debtorField').style.display = cash ? 'none' : 'block';
+    document.getElementById('debtorPhoneField').style.display = cash ? 'none' : 'block';
   }
   document.getElementById('payCash').addEventListener('click', ()=> setPayMode(true));
   document.getElementById('payDebt').addEventListener('click', ()=> setPayMode(false));
@@ -727,9 +1107,9 @@
     const item = inventory.find(i=>String(i.id)===String(itemId));
     if(!item || qty<=0){ showToast('Chagua bidhaa na idadi sahihi'); return; }
     if(qty > item.qty){ showToast('Stock haitoshi'); return; }
-    let debtorName = '', debtorPhone = '';
+    let debtorName = document.getElementById('debtorName').value.trim();
+    let debtorPhone = '';
     if(!payingCash){
-      debtorName = document.getElementById('debtorName').value.trim();
       if(!debtorName){ showToast('Andika jina la mteja'); return; }
       debtorPhone = document.getElementById('debtorPhone').value.trim();
     }
@@ -746,6 +1126,18 @@
 
   // Global actions used by inline onclick
   window.dukaApp = {
+    viewAgentInventory: async (id) => {
+      const agent = agents.find(a => String(a.id) === String(id));
+      if (!agent) return;
+      selectedAgent = agent;
+      try {
+        selectedAgentInventory = await api(`/agents/${id}/inventory`);
+        renderAgentInventory();
+        showToast('Taarifa za ' + agent.fullName + ' zimepakiwa');
+      } catch (e) {
+        showToast(e.message);
+      }
+    },
     adjustStock: async (id, delta) => {
       const it = inventory.find(i=>String(i.id)===String(id));
       if(!it) return;

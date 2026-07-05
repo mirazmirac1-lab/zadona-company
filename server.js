@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('./db');
 
 const app = express();
@@ -29,18 +30,157 @@ function mapSaleRow(r) {
     paidAmount: Number(r.paid_amount),
     debtorName: r.debtor_name || '',
     debtorPhone: r.debtor_phone || '',
+    agentId: r.agent_id || null,
     date: r.sale_date
   };
 }
 
 function mapItemRow(r) {
-  return { id: r.id, name: r.name, qty: r.qty, price: Number(r.price) };
+  return { id: r.id, name: r.name, qty: r.qty, price: Number(r.price), ownerId: r.owner_id || null };
 }
 
-// ---------- Inventory routes ----------
-app.get('/api/inventory', async (req, res) => {
+function mapUserRow(r) {
+  return { id: r.id, fullName: r.full_name, phone: r.phone, role: r.role };
+}
+
+function mapCompanyProfile(r) {
+  return {
+    id: r.id,
+    companyName: r.company_name,
+    address: r.address || '',
+    phone: r.phone || '',
+    ownerName: r.owner_name || '',
+    notes: r.notes || ''
+  };
+}
+
+function mapExpenseRow(r) {
+  return {
+    id: r.id,
+    description: r.description,
+    amount: Number(r.amount),
+    category: r.category,
+    expenseDate: r.expense_date,
+    notes: r.notes || ''
+  };
+}
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const [scheme, encoded] = auth.split(' ');
+  if (scheme !== 'Basic' || !encoded) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const [phone, password] = Buffer.from(encoded, 'base64').toString('utf8').split(':');
+  if (!phone || !password) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  req.auth = { phone, password };
+  next();
+}
+
+async function getAuthenticatedUser(req) {
+  const { phone, password } = req.auth;
+  const { rows } = await pool.query(
+    'SELECT * FROM users WHERE phone = $1 AND password_hash = $2',
+    [phone, hashPassword(password)]
+  );
+  return rows[0] || null;
+}
+
+async function requireRole(req, res, next) {
+  const user = await getAuthenticatedUser(req);
+  if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+  req.user = user;
+  next();
+}
+
+async function requireHeadquarter(req, res, next) {
+  await requireRole(req, res, async () => {
+    if (req.user.role !== 'headquarter') {
+      return res.status(403).json({ error: 'Only headquarter can access this area' });
+    }
+    next();
+  });
+}
+
+// ---------- Auth routes ----------
+app.post('/api/login', requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM inventory ORDER BY id');
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    res.json({ user: mapUserRow(user) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kuthibitisha' });
+  }
+});
+
+app.post('/api/users', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can create agents' });
+    const { fullName, phone, password, role = 'agent' } = req.body;
+    if (!fullName || !phone || !password) {
+      return res.status(400).json({ error: 'Jina, namba ya simu na password zinahitajika' });
+    }
+    const { rows } = await pool.query(
+      'INSERT INTO users (full_name, phone, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',
+      [fullName, phone, hashPassword(password), role]
+    );
+    res.status(201).json(mapUserRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kuunda mtumiaji' });
+  }
+});
+
+app.get('/api/users', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can view agents' });
+    const { rows } = await pool.query('SELECT * FROM users ORDER BY id');
+    res.json(rows.map(mapUserRow));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupata watumiaji' });
+  }
+});
+
+app.get('/api/agents/:id/inventory', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can view agent inventory' });
+    const { rows } = await pool.query('SELECT * FROM inventory WHERE owner_id = $1 ORDER BY id', [req.params.id]);
+    res.json(rows.map(mapItemRow));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupata taarifa za wakala' });
+  }
+});
+
+// ---------- Inventory routes ----------
+app.get('/api/inventory', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    let query = 'SELECT * FROM inventory';
+    let params = [];
+    if (user.role === 'agent') {
+      query += ' WHERE owner_id IS NULL OR owner_id = $1';
+      params.push(user.id);
+    }
+    query += ' ORDER BY id';
+    const { rows } = await pool.query(query, params);
     res.json(rows.map(mapItemRow));
   } catch (err) {
     console.error(err);
@@ -48,13 +188,18 @@ app.get('/api/inventory', async (req, res) => {
   }
 });
 
-app.post('/api/inventory', async (req, res) => {
+app.post('/api/inventory', requireAuth, async (req, res) => {
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'agent' && user.role !== 'headquarter') {
+      return res.status(403).json({ error: 'Role not allowed' });
+    }
     const { name, qty, price } = req.body;
     if (!name) return res.status(400).json({ error: 'Jina la bidhaa linahitajika' });
     const { rows } = await pool.query(
-      'INSERT INTO inventory (name, qty, price) VALUES ($1, $2, $3) RETURNING *',
-      [name, qty || 0, price || 0]
+      'INSERT INTO inventory (name, qty, price, owner_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, qty || 0, price || 0, user.role === 'agent' ? user.id : null]
     );
     res.status(201).json(mapItemRow(rows[0]));
   } catch (err) {
@@ -64,14 +209,20 @@ app.post('/api/inventory', async (req, res) => {
 });
 
 // Adjust stock (add or subtract qty)
-app.patch('/api/inventory/:id/stock', async (req, res) => {
+app.patch('/api/inventory/:id/stock', requireAuth, async (req, res) => {
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
     const { delta } = req.body;
+    const existing = await pool.query('SELECT * FROM inventory WHERE id = $1', [req.params.id]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Bidhaa haipo' });
+    if (user.role === 'agent' && existing.rows[0].owner_id !== user.id) {
+      return res.status(403).json({ error: 'Unaweza kubadilisha bidhaa zako tu' });
+    }
     const { rows } = await pool.query(
       'UPDATE inventory SET qty = qty + $1 WHERE id = $2 RETURNING *',
       [delta, req.params.id]
     );
-    if (rows.length === 0) return res.status(404).json({ error: 'Bidhaa haipo' });
     res.json(mapItemRow(rows[0]));
   } catch (err) {
     console.error(err);
@@ -79,8 +230,15 @@ app.patch('/api/inventory/:id/stock', async (req, res) => {
   }
 });
 
-app.delete('/api/inventory/:id', async (req, res) => {
+app.delete('/api/inventory/:id', requireAuth, async (req, res) => {
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    const existing = await pool.query('SELECT * FROM inventory WHERE id = $1', [req.params.id]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Bidhaa haipo' });
+    if (user.role === 'agent' && existing.rows[0].owner_id !== user.id) {
+      return res.status(403).json({ error: 'Unaweza kufuta bidhaa zako tu' });
+    }
     await pool.query('DELETE FROM inventory WHERE id = $1', [req.params.id]);
     res.status(204).end();
   } catch (err) {
@@ -90,9 +248,18 @@ app.delete('/api/inventory/:id', async (req, res) => {
 });
 
 // ---------- Sales routes ----------
-app.get('/api/sales', async (req, res) => {
+app.get('/api/sales', requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM sales ORDER BY sale_date DESC');
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    let query = 'SELECT * FROM sales';
+    const params = [];
+    if (user.role === 'agent') {
+      query += ' WHERE agent_id = $1';
+      params.push(user.id);
+    }
+    query += ' ORDER BY sale_date DESC';
+    const { rows } = await pool.query(query, params);
     res.json(rows.map(mapSaleRow));
   } catch (err) {
     console.error(err);
@@ -101,9 +268,11 @@ app.get('/api/sales', async (req, res) => {
 });
 
 // Create a sale: decrements stock and records the sale in one transaction
-app.post('/api/sales', async (req, res) => {
+app.post('/api/sales', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
     const { itemId, qty, debtorName, debtorPhone, paidCash } = req.body;
     if (!itemId || !qty || qty <= 0) {
       return res.status(400).json({ error: 'Chagua bidhaa na idadi sahihi' });
@@ -127,9 +296,9 @@ app.post('/api/sales', async (req, res) => {
     await client.query('UPDATE inventory SET qty = qty - $1 WHERE id = $2', [qty, itemId]);
 
     const saleRes = await client.query(
-      `INSERT INTO sales (item_id, item_name, qty, total, paid_amount, debtor_name, debtor_phone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [itemId, item.name, qty, total, paidAmount, debtorName || null, debtorPhone || null]
+      `INSERT INTO sales (item_id, item_name, qty, total, paid_amount, debtor_name, debtor_phone, agent_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [itemId, item.name, qty, total, paidAmount, debtorName || null, debtorPhone || null, user.id]
     );
 
     await client.query('COMMIT');
@@ -144,12 +313,18 @@ app.post('/api/sales', async (req, res) => {
 });
 
 // Mark a single sale fully paid
-app.patch('/api/sales/:id/mark-paid', async (req, res) => {
+app.patch('/api/sales/:id/mark-paid', requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      'UPDATE sales SET paid_amount = total WHERE id = $1 RETURNING *',
-      [req.params.id]
-    );
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    let query = 'UPDATE sales SET paid_amount = total WHERE id = $1';
+    const params = [req.params.id];
+    if (user.role === 'agent') {
+      query += ' AND agent_id = $2';
+      params.push(user.id);
+    }
+    query += ' RETURNING *';
+    const { rows } = await pool.query(query, params);
     if (rows.length === 0) return res.status(404).json({ error: 'Mauzo hayapo' });
     res.json(mapSaleRow(rows[0]));
   } catch (err) {
@@ -159,19 +334,21 @@ app.patch('/api/sales/:id/mark-paid', async (req, res) => {
 });
 
 // Apply a partial/full payment across a debtor's oldest unpaid sales first
-app.post('/api/debts/pay', async (req, res) => {
+app.post('/api/debts/pay', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
     const { debtorName, amount } = req.body;
     if (!debtorName || !amount || amount <= 0) {
       return res.status(400).json({ error: 'Andika jina na kiasi sahihi' });
     }
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      `SELECT * FROM sales WHERE lower(debtor_name) = lower($1) AND paid_amount < total
-       ORDER BY sale_date ASC FOR UPDATE`,
-      [debtorName]
-    );
+    const query = user.role === 'agent'
+      ? `SELECT * FROM sales WHERE lower(debtor_name) = lower($1) AND paid_amount < total AND agent_id = $2 ORDER BY sale_date ASC FOR UPDATE`
+      : `SELECT * FROM sales WHERE lower(debtor_name) = lower($1) AND paid_amount < total ORDER BY sale_date ASC FOR UPDATE`;
+    const params = user.role === 'agent' ? [debtorName, user.id] : [debtorName];
+    const { rows } = await client.query(query, params);
     let remainingPayment = Number(amount);
     for (const sale of rows) {
       if (remainingPayment <= 0) break;
@@ -192,14 +369,23 @@ app.post('/api/debts/pay', async (req, res) => {
 });
 
 // Mark all of a debtor's sales as fully paid
-app.post('/api/debts/pay-all', async (req, res) => {
+app.post('/api/debts/pay-all', requireAuth, async (req, res) => {
   try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
     const { debtorName } = req.body;
     if (!debtorName) return res.status(400).json({ error: 'Jina la mteja linahitajika' });
-    await pool.query(
-      'UPDATE sales SET paid_amount = total WHERE lower(debtor_name) = lower($1)',
-      [debtorName]
-    );
+    if (user.role === 'agent') {
+      await pool.query(
+        'UPDATE sales SET paid_amount = total WHERE lower(debtor_name) = lower($1) AND agent_id = $2',
+        [debtorName, user.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE sales SET paid_amount = total WHERE lower(debtor_name) = lower($1)',
+        [debtorName]
+      );
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -207,9 +393,124 @@ app.post('/api/debts/pay-all', async (req, res) => {
   }
 });
 
+// ---------- Company profile & expenses ----------
+app.get('/api/company', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    const { rows } = await pool.query('SELECT * FROM company_profile ORDER BY id DESC LIMIT 1');
+    if (rows.length === 0) {
+      return res.json({ company: null });
+    }
+    res.json({ company: mapCompanyProfile(rows[0]) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupata taarifa ya kampuni' });
+  }
+});
+
+app.post('/api/company', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can update company details' });
+    const { companyName, address, phone, ownerName, notes } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO company_profile (company_name, address, phone, owner_name, notes)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [companyName || 'Zadona', address || '', phone || '', ownerName || '', notes || '']
+    );
+    res.status(201).json({ company: mapCompanyProfile(rows[0]) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kusasisha taarifa ya kampuni' });
+  }
+});
+
+app.get('/api/expenses', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    const { rows } = await pool.query('SELECT * FROM expenses ORDER BY expense_date DESC, id DESC');
+    res.json(rows.map(mapExpenseRow));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupata matumizi' });
+  }
+});
+
+app.get('/api/reports/summary', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can view reports' });
+    const [salesRes, expensesRes] = await Promise.all([
+      pool.query('SELECT COALESCE(SUM(total), 0)::numeric AS revenue FROM sales'),
+      pool.query('SELECT COALESCE(SUM(amount), 0)::numeric AS expenses FROM expenses')
+    ]);
+    const revenue = Number(salesRes.rows[0].revenue || 0);
+    const spend = Number(expensesRes.rows[0].expenses || 0);
+    res.json({ revenue, expenses: spend, profit: revenue - spend });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kupata ripoti' });
+  }
+});
+
+app.post('/api/expenses', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can record expenditures' });
+    const { description, amount, category, expenseDate, notes } = req.body;
+    if (!description || !amount || amount <= 0) {
+      return res.status(400).json({ error: 'Maelezo na kiasi vinahitajika' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO expenses (description, amount, category, expense_date, notes)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [description, amount, category || 'Resources', expenseDate || new Date().toISOString().slice(0, 10), notes || '']
+    );
+    res.status(201).json(mapExpenseRow(rows[0]));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kurekodi matumizi' });
+  }
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+async function seedDefaultCompany() {
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM company_profile');
+  if (rows[0].count > 0) return;
+  await pool.query(
+    `INSERT INTO company_profile (company_name, address, phone, owner_name, notes)
+     VALUES ($1, $2, $3, $4, $5)`,
+    ['Zadona', 'Dar es Salaam', '255700000000', 'Headquarter', 'Main company profile']
+  );
+}
+
+async function seedDefaultUsers() {
+  const headquarterPhone = '255700000000';
+  const agentPhone = '255700000001';
+  const headquarterPassword = 'headquarter123';
+  const agentPassword = 'agent123';
+
+  const existing = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+  if (existing.rows[0].count > 0) return;
+
+  await pool.query(
+    'INSERT INTO users (full_name, phone, password_hash, role) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)',
+    [
+      'Headquarter', headquarterPhone, hashPassword(headquarterPassword), 'headquarter',
+      'Agent One', agentPhone, hashPassword(agentPassword), 'agent'
+    ]
+  );
+}
+
 ensureSchema()
+  .then(seedDefaultCompany)
+  .then(seedDefaultUsers)
   .then(() => {
     app.listen(PORT, () => console.log(`Zadona running on port ${PORT}`));
   })
