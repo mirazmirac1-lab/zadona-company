@@ -425,6 +425,23 @@
   </nav>
 
   <main>
+    <div class="card" id="changePasswordCard" style="display:none;">
+      <div class="section-title">Badilisha Nywila</div>
+      <div class="field">
+        <label>Nywila ya sasa</label>
+        <input type="password" id="currentPassword" placeholder="Ingiza nywila ya sasa">
+      </div>
+      <div class="field">
+        <label>Nywila mpya</label>
+        <input type="password" id="newPassword" placeholder="Ingiza nywila mpya">
+      </div>
+      <div class="field">
+        <label>Rudia nywila mpya</label>
+        <input type="password" id="confirmPassword" placeholder="Rudia nywila mpya">
+      </div>
+      <button class="btn-save" id="changePasswordBtn" style="width:100%;">Badilisha Nywila</button>
+    </div>
+
     <section id="tab-sales">
       <p class="section-title">Mauzo ya Hivi Karibuni</p>
       <div id="salesList"></div>
@@ -474,10 +491,7 @@
         </div>
         <div class="field">
           <label>Aina ya Akaunti</label>
-          <select id="accountRole">
-            <option value="agent">Agent</option>
-            <option value="headquarter">Headquarter</option>
-          </select>
+          <div class="meta">Akaunti ya agent itaundwa na kupewa ufikiaji mara moja.</div>
         </div>
         <button class="btn-save" id="createAccountBtn" style="width:100%;">Unda Akaunti</button>
       </div>
@@ -582,11 +596,8 @@
       </div>
       <div id="registerFields" style="display:none;">
         <div class="field">
-          <label>Aina ya Akaunti</label>
-          <div class="toggle-row small">
-            <button class="sel" id="registerAgentBtn" type="button">Agent</button>
-            <button id="registerHqBtn" type="button">HQ</button>
-          </div>
+          <label>Akaunti ya mtumiaji</label>
+          <div class="meta">Akaunti ya agent itaundwa na kupewa ufikiaji mara moja.</div>
         </div>
       </div>
       <div class="modal-actions">
@@ -683,7 +694,8 @@
     toast: document.getElementById('toast'),
     userStatus: document.getElementById('userStatus'),
     logoutBtn: document.getElementById('logoutBtn'),
-    loginModalBg: document.getElementById('loginModalBg')
+    loginModalBg: document.getElementById('loginModalBg'),
+    changePasswordCard: document.getElementById('changePasswordCard')
   };
 
   function showToast(msg){
@@ -725,6 +737,7 @@
       ? `${currentUser.fullName} • ${currentUser.role === 'headquarter' ? 'Headquarter' : 'Agent'}`
       : 'Hujaingia';
     els.loginModalBg.classList.toggle('hidden', !!currentUser);
+    els.changePasswordCard.style.display = currentUser ? 'block' : 'none';
   }
 
   function renderTabs(){
@@ -898,7 +911,7 @@
                 <div class="meta">${escapeHtml(a.phone)}</div>
                 <div class="meta">Bidhaa: ${agentInventoryCount} • Mauzo: ${agentSalesCount}</div>
               </div>
-              <button class="btn-save" onclick="dukaApp.viewAgentInventory('${a.id}')">Angalia Bidhaa</button>
+              <button class="btn-save" onclick="dukaApp.viewAgentInventory('${a.id}')">Angalia Shughuli</button>
             </div>
           </div>
         `;
@@ -916,11 +929,32 @@
       panel.style.display = 'none';
       return;
     }
-    details.innerHTML = `<div class="meta">Agent: <strong>${escapeHtml(selectedAgent.fullName)}</strong> &middot; ${escapeHtml(selectedAgent.phone)}</div>`;
-    if (selectedAgentInventory.length === 0) {
-      list.innerHTML = '<div class="empty">Agent huyu hana bidhaa.</div>';
-    } else {
-      list.innerHTML = selectedAgentInventory.map(it => `
+    const agentSales = sales.filter(s => String(s.agentId) === String(selectedAgent.id)).sort((a,b)=> new Date(b.date) - new Date(a.date));
+    details.innerHTML = `
+      <div class="meta">Agent: <strong>${escapeHtml(selectedAgent.fullName)}</strong> &middot; ${escapeHtml(selectedAgent.phone)}</div>
+      <div class="meta">Mauzo: <strong>${agentSales.length}</strong> • Bidhaa: <strong>${selectedAgentInventory.length}</strong></div>
+    `;
+
+    const sections = [];
+    if (agentSales.length > 0) {
+      sections.push(`<div class="section-title" style="margin-top:8px;">Shughuli za Mauzo</div>`);
+      sections.push(agentSales.slice(0, 5).map(s => `
+        <div class="card">
+          <div class="item-row">
+            <div>
+              <div class="name">${escapeHtml(s.itemName)} <span style="font-weight:400;color:#8a8470;">x${s.qty}</span></div>
+              <div class="meta">${new Date(s.date).toLocaleString()}</div>
+              <div class="meta">Mteja: ${escapeHtml(s.debtorName || '-')}</div>
+            </div>
+            <div class="amt">${fmt(s.total)}</div>
+          </div>
+        </div>
+      `).join(''));
+    }
+
+    if (selectedAgentInventory.length > 0) {
+      sections.push(`<div class="section-title" style="margin-top:8px;">Bidhaa za Agent</div>`);
+      sections.push(selectedAgentInventory.map(it => `
         <div class="card">
           <div class="item-row">
             <div>
@@ -930,7 +964,13 @@
             <div class="qty-pill ${it.qty <= 3 ? 'low' : ''}">${it.qty}</div>
           </div>
         </div>
-      `).join('');
+      `).join(''));
+    }
+
+    if (sections.length === 0) {
+      list.innerHTML = '<div class="empty">Agent huyu hajafanya shughuli bado.</div>';
+    } else {
+      list.innerHTML = sections.join('');
     }
     panel.style.display = 'block';
   }
@@ -1026,15 +1066,11 @@
   }
 
   function setSelfRegisterRole(role){
-    selfRegisterRole = role;
-    document.getElementById('registerAgentBtn').classList.toggle('sel', role === 'agent');
-    document.getElementById('registerHqBtn').classList.toggle('sel', role === 'headquarter');
+    selfRegisterRole = role || 'agent';
   }
 
   document.getElementById('loginModeBtn').addEventListener('click', ()=> setRegisterMode(false));
   document.getElementById('registerModeBtn').addEventListener('click', ()=> setRegisterMode(true));
-  document.getElementById('registerAgentBtn').addEventListener('click', ()=> setSelfRegisterRole('agent'));
-  document.getElementById('registerHqBtn').addEventListener('click', ()=> setSelfRegisterRole('headquarter'));
 
   // Login / self-registration
   document.getElementById('loginSave').addEventListener('click', async ()=>{
@@ -1075,6 +1111,21 @@
       renderAll();
       showToast(e.message);
     }
+  });
+
+  document.getElementById('changePasswordBtn').addEventListener('click', async ()=>{
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    if(!currentPassword || !newPassword || !confirmPassword){ showToast('Jaza nywila ya sasa na mipya'); return; }
+    if(newPassword !== confirmPassword){ showToast('Nywila mpya hazilingani'); return; }
+    try{
+      await api('/change-password', { method:'POST', body: JSON.stringify({ currentPassword, newPassword }) });
+      document.getElementById('currentPassword').value='';
+      document.getElementById('newPassword').value='';
+      document.getElementById('confirmPassword').value='';
+      showToast('Nywila imebadilishwa');
+    }catch(e){ showToast(e.message); }
   });
 
   document.getElementById('createAgentBtn').addEventListener('click', async ()=>{

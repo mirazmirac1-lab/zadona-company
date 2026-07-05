@@ -162,7 +162,7 @@ app.post('/api/users', async (req, res) => {
     }
 
     const isSelfRegistration = !actingUser;
-    const approvalStatus = isSelfRegistration ? 'approved' : ((role === 'headquarter' && isZaudiaAccount(trimmedName)) ? 'approved' : 'pending');
+    const approvalStatus = 'approved';
 
     if (!isSelfRegistration && (actingUser.role !== 'headquarter' || actingUser.approval_status !== 'approved')) {
       return res.status(403).json({ error: 'Only approved headquarter can create accounts' });
@@ -189,6 +189,28 @@ app.get('/api/users', requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Imeshindwa kupata watumiaji' });
+  }
+});
+
+app.post('/api/change-password', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Nywila ya sasa na mpya zinahitajika' });
+    }
+    if (hashPassword(currentPassword) !== user.password_hash) {
+      return res.status(401).json({ error: 'Nywila ya sasa si sahihi' });
+    }
+    if (String(newPassword).length < 4) {
+      return res.status(400).json({ error: 'Nywila mpya lazima iwe na herufi 4 au zaidi' });
+    }
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPassword(newPassword), user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kubadilisha nywila' });
   }
 });
 
@@ -547,18 +569,37 @@ async function seedDefaultCompany() {
 }
 
 async function seedDefaultUsers() {
-  const headquarterPhone = '255700000000';
+  const headquarterPhone = '0718278600';
+  const legacyHeadquarterPhone = '255700000000';
   const agentPhone = '255700000001';
-  const headquarterPassword = 'headquarter123';
+  const headquarterPassword = 'zaudia';
   const agentPassword = 'agent123';
 
-  const existing = await pool.query('SELECT COUNT(*)::int AS count FROM users');
-  if (existing.rows[0].count > 0) return;
+  const existing = await pool.query(
+    'SELECT * FROM users WHERE phone IN ($1, $2) OR full_name ILIKE $3',
+    [headquarterPhone, legacyHeadquarterPhone, '%zaudia%']
+  );
+  if (existing.rows.length > 0) {
+    await pool.query(
+      'UPDATE users SET full_name = $1, phone = $2, password_hash = $3, role = $4, approval_status = $5 WHERE id = $6',
+      ['Zaudia dadi', headquarterPhone, hashPassword(headquarterPassword), 'headquarter', 'approved', existing.rows[0].id]
+    );
+    return;
+  }
+
+  const otherUsers = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+  if (otherUsers.rows[0].count > 0) {
+    await pool.query(
+      'INSERT INTO users (full_name, phone, password_hash, role, approval_status) VALUES ($1, $2, $3, $4, $5)',
+      ['Zaudia dadi', headquarterPhone, hashPassword(headquarterPassword), 'headquarter', 'approved']
+    );
+    return;
+  }
 
   await pool.query(
     'INSERT INTO users (full_name, phone, password_hash, role, approval_status) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)',
     [
-      'Zaudia', headquarterPhone, hashPassword(headquarterPassword), 'headquarter', 'approved',
+      'Zaudia dadi', headquarterPhone, hashPassword(headquarterPassword), 'headquarter', 'approved',
       'Agent One', agentPhone, hashPassword(agentPassword), 'agent', 'approved'
     ]
   );
