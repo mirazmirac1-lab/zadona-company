@@ -320,6 +320,8 @@
     color:#fff;
     border-color:var(--green-dark);
   }
+  .toggle-row.small{ gap:6px; margin-bottom:10px; }
+  .toggle-row.small button{ padding:8px 0; font-size:0.76rem; }
   .modal-actions{
     display:flex;
     gap:10px;
@@ -569,6 +571,19 @@
         <label>Nywila</label>
         <input type="password" id="loginPassword" placeholder="Ingiza nywila">
       </div>
+      <div class="toggle-row small" id="registerModeRow">
+        <button class="sel" id="loginModeBtn" type="button">Ingia</button>
+        <button id="registerModeBtn" type="button">Jiandikishe</button>
+      </div>
+      <div id="registerFields" style="display:none;">
+        <div class="field">
+          <label>Aina ya Akaunti</label>
+          <div class="toggle-row small">
+            <button class="sel" id="registerAgentBtn" type="button">Agent</button>
+            <button id="registerHqBtn" type="button">HQ</button>
+          </div>
+        </div>
+      </div>
       <div class="modal-actions">
         <button class="btn-save" id="loginSave" style="width:100%;">Ingia</button>
       </div>
@@ -645,6 +660,8 @@
   let currentUser = null;
   let auth = null;
   let agents = [];
+  let selfRegisterMode = false;
+  let selfRegisterRole = 'agent';
   let selectedAgent = null;
   let selectedAgentInventory = [];
   let company = null;
@@ -973,13 +990,48 @@
 
   els.logoutBtn.addEventListener('click', logout);
 
-  // Login
+  function setRegisterMode(mode){
+    selfRegisterMode = mode;
+    document.getElementById('loginModeBtn').classList.toggle('sel', !mode);
+    document.getElementById('registerModeBtn').classList.toggle('sel', mode);
+    document.getElementById('registerFields').style.display = mode ? 'block' : 'none';
+    document.getElementById('loginSave').textContent = mode ? 'Jiandikishe' : 'Ingia';
+  }
+
+  function setSelfRegisterRole(role){
+    selfRegisterRole = role;
+    document.getElementById('registerAgentBtn').classList.toggle('sel', role === 'agent');
+    document.getElementById('registerHqBtn').classList.toggle('sel', role === 'headquarter');
+  }
+
+  document.getElementById('loginModeBtn').addEventListener('click', ()=> setRegisterMode(false));
+  document.getElementById('registerModeBtn').addEventListener('click', ()=> setRegisterMode(true));
+  document.getElementById('registerAgentBtn').addEventListener('click', ()=> setSelfRegisterRole('agent'));
+  document.getElementById('registerHqBtn').addEventListener('click', ()=> setSelfRegisterRole('headquarter'));
+
+  // Login / self-registration
   document.getElementById('loginSave').addEventListener('click', async ()=>{
     const fullName = document.getElementById('loginFullName').value.trim();
     const phone = document.getElementById('loginPhone').value.trim();
     const password = document.getElementById('loginPassword').value;
-    if(!phone || !password){ showToast('Jaza namba ya simu na nywila'); return; }
+    if(!phone || !password || !fullName){ showToast('Jaza jina kamili, namba ya simu na nywila'); return; }
     try{
+      if (selfRegisterMode) {
+        await api('/users', { method:'POST', body: JSON.stringify({ fullName, phone, password, role: selfRegisterRole }) });
+        auth = { phone, password };
+        const data = await api('/login', { method:'POST', body: JSON.stringify({ fullName }) });
+        currentUser = data.user;
+        els.loginModalBg.classList.add('hidden');
+        document.getElementById('loginFullName').value='';
+        document.getElementById('loginPhone').value='';
+        document.getElementById('loginPassword').value='';
+        setRegisterMode(false);
+        setSelfRegisterRole('agent');
+        await loadAll();
+        showToast('Akaunti imeundwa kwa jina la ' + currentUser.fullName);
+        return;
+      }
+
       auth = { phone, password };
       const data = await api('/login', { method:'POST', body: JSON.stringify({ fullName }) });
       currentUser = data.user;
