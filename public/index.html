@@ -483,6 +483,11 @@
       </div>
 
       <div class="card">
+        <div class="section-title">Akaunti Zinazosubiri Approval</div>
+        <div id="pendingAccountsList"></div>
+      </div>
+
+      <div class="card">
         <div class="section-title">Taarifa za Kampuni</div>
         <div class="field">
           <label>Jina la Kampuni</label>
@@ -854,6 +859,27 @@
     return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
+  function renderPendingAccounts(){
+    const container = document.getElementById('pendingAccountsList');
+    const pending = agents.filter(a => a.approvalStatus !== 'approved');
+    if (pending.length === 0) {
+      container.innerHTML = '<div class="empty">Hakuna akaunti zinazosubiri approval.</div>';
+      return;
+    }
+    container.innerHTML = pending.map(a => `
+      <div class="card">
+        <div class="item-row">
+          <div>
+            <div class="name">${escapeHtml(a.fullName)}</div>
+            <div class="meta">${escapeHtml(a.phone)} • ${escapeHtml(a.role)}</div>
+            <div class="meta">Status: ${escapeHtml(a.approvalStatus || 'pending')}</div>
+          </div>
+          ${currentUser && currentUser.fullName && currentUser.fullName.toLowerCase() === 'zaudia' ? `<button class="btn-save" onclick="dukaApp.approveAccount('${a.id}')">Approve</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
   function renderAgents(){
     const container = document.getElementById('agentsList');
     if (currentUser && currentUser.role === 'headquarter') {
@@ -956,6 +982,7 @@
     renderSales();
     renderDebts();
     renderAgents();
+    renderPendingAccounts();
     renderAgentInventory();
     renderExpenses();
     renderReportSummary();
@@ -1219,6 +1246,15 @@
 
   // Global actions used by inline onclick
   window.dukaApp = {
+    approveAccount: async (id) => {
+      try {
+        await api(`/users/${id}/approve`, { method:'POST' });
+        await loadAll();
+        showToast('Akaunti imeapproved');
+      } catch (e) {
+        showToast(e.message);
+      }
+    },
     viewAgentInventory: async (id) => {
       const agent = agents.find(a => String(a.id) === String(id));
       if (!agent) return;

@@ -40,7 +40,7 @@ function mapItemRow(r) {
 }
 
 function mapUserRow(r) {
-  return { id: r.id, fullName: r.full_name, phone: r.phone, role: r.role };
+  return { id: r.id, fullName: r.full_name, phone: r.phone, role: r.role, approvalStatus: r.approval_status || 'pending' };
 }
 
 function mapCompanyProfile(r) {
@@ -67,6 +67,14 @@ function mapExpenseRow(r) {
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+function normalizeName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function isZaudiaAccount(fullName) {
+  return normalizeName(fullName) === 'zaudia';
 }
 
 function requireAuth(req, res, next) {
@@ -115,6 +123,9 @@ app.post('/api/login', requireAuth, async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.approval_status !== 'approved') {
+      return res.status(403).json({ error: 'Account is pending approval by Zaudia' });
+    }
     res.json({ user: mapUserRow(user) });
   } catch (err) {
     console.error(err);
@@ -126,17 +137,19 @@ app.post('/api/users', requireAuth, async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
-    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can create accounts' });
+    if (user.role !== 'headquarter' || user.approval_status !== 'approved') return res.status(403).json({ error: 'Only approved headquarter can create accounts' });
     const { fullName, phone, password, role = 'agent' } = req.body;
-    if (!fullName || !phone || !password) {
+    const trimmedName = String(fullName || '').trim();
+    if (!trimmedName || !phone || !password) {
       return res.status(400).json({ error: 'Jina, namba ya simu na password zinahitajika' });
     }
     if (!['headquarter', 'agent'].includes(role)) {
       return res.status(400).json({ error: 'Role is not supported' });
     }
+    const approvalStatus = (role === 'headquarter' && isZaudiaAccount(trimmedName)) ? 'approved' : 'pending';
     const { rows } = await pool.query(
-      'INSERT INTO users (full_name, phone, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',
-      [fullName, phone, hashPassword(password), role]
+      'INSERT INTO users (full_name, phone, password_hash, role, approval_status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [trimmedName, phone, hashPassword(password), role, approvalStatus]
     );
     res.status(201).json(mapUserRow(rows[0]));
   } catch (err) {
@@ -149,7 +162,7 @@ app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
-    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can view agents' });
+    if (user.role !== 'headquarter' || user.approval_status !== 'approved') return res.status(403).json({ error: 'Only approved headquarter can view accounts' });
     const { rows } = await pool.query('SELECT * FROM users ORDER BY id');
     res.json(rows.map(mapUserRow));
   } catch (err) {
@@ -158,11 +171,30 @@ app.get('/api/users', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/api/users/:id/approve', requireAuth, async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
+    if (user.role !== 'headquarter' || user.approval_status !== 'approved' || !isZaudiaAccount(user.full_name)) {
+      return res.status(403).json({ error: 'Only Zaudia can approve accounts' });
+    }
+    const { rows } = await pool.query(
+      'UPDATE users SET approval_status = $1 WHERE id = $2 RETURNING *',
+      ['approved', req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Account not found' });
+    res.json({ user: mapUserRow(rows[0]) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kuapprove akaunti' });
+  }
+});
+
 app.get('/api/agents/:id/inventory', requireAuth, async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
-    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can view agent inventory' });
+    if (user.role !== 'headquarter' || user.approval_status !== 'approved') return res.status(403).json({ error: 'Only approved headquarter can view agent inventory' });
     const { rows } = await pool.query('SELECT * FROM inventory WHERE owner_id = $1 ORDER BY id', [req.params.id]);
     res.json(rows.map(mapItemRow));
   } catch (err) {
@@ -503,10 +535,10 @@ async function seedDefaultUsers() {
   if (existing.rows[0].count > 0) return;
 
   await pool.query(
-    'INSERT INTO users (full_name, phone, password_hash, role) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)',
+    'INSERT INTO users (full_name, phone, password_hash, role, approval_status) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)',
     [
-      'Headquarter', headquarterPhone, hashPassword(headquarterPassword), 'headquarter',
-      'Agent One', agentPhone, hashPassword(agentPassword), 'agent'
+      'Zaudia', headquarterPhone, hashPassword(headquarterPassword), 'headquarter', 'approved',
+      'Agent One', agentPhone, hashPassword(agentPassword), 'agent', 'approved'
     ]
   );
 }
