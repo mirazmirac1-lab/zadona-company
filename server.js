@@ -126,10 +126,13 @@ app.post('/api/users', requireAuth, async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.status(401).json({ error: 'Invalid phone or password' });
-    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can create agents' });
+    if (user.role !== 'headquarter') return res.status(403).json({ error: 'Only headquarter can create accounts' });
     const { fullName, phone, password, role = 'agent' } = req.body;
     if (!fullName || !phone || !password) {
       return res.status(400).json({ error: 'Jina, namba ya simu na password zinahitajika' });
+    }
+    if (!['headquarter', 'agent'].includes(role)) {
+      return res.status(400).json({ error: 'Role is not supported' });
     }
     const { rows } = await pool.query(
       'INSERT INTO users (full_name, phone, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',

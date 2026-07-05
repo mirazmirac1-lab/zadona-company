@@ -457,6 +457,30 @@
       </div>
 
       <div class="card">
+        <div class="section-title">Unda Akaunti</div>
+        <div class="field">
+          <label>Jina la Mtu</label>
+          <input type="text" id="accountFullName" placeholder="Mfano: Mkuu Msaidizi">
+        </div>
+        <div class="field">
+          <label>Namba ya Simu</label>
+          <input type="text" id="accountPhone" placeholder="2557xx xxx xxx">
+        </div>
+        <div class="field">
+          <label>Nywila</label>
+          <input type="password" id="accountPassword" placeholder="Ingiza nywila">
+        </div>
+        <div class="field">
+          <label>Aina ya Akaunti</label>
+          <select id="accountRole">
+            <option value="agent">Agent</option>
+            <option value="headquarter">Headquarter</option>
+          </select>
+        </div>
+        <button class="btn-save" id="createAccountBtn" style="width:100%;">Unda Akaunti</button>
+      </div>
+
+      <div class="card">
         <div class="section-title">Taarifa za Kampuni</div>
         <div class="field">
           <label>Jina la Kampuni</label>
@@ -985,6 +1009,23 @@
       document.getElementById('agentPassword').value='';
       await loadAll();
       showToast('Agent imeundwa');
+    }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('createAccountBtn').addEventListener('click', async ()=>{
+    const fullName = document.getElementById('accountFullName').value.trim();
+    const phone = document.getElementById('accountPhone').value.trim();
+    const password = document.getElementById('accountPassword').value;
+    const role = document.getElementById('accountRole').value;
+    if(!fullName || !phone || !password){ showToast('Jaza jina, namba ya simu na nywila'); return; }
+    try{
+      await api('/users', { method:'POST', body: JSON.stringify({ fullName, phone, password, role }) });
+      document.getElementById('accountFullName').value='';
+      document.getElementById('accountPhone').value='';
+      document.getElementById('accountPassword').value='';
+      document.getElementById('accountRole').value='agent';
+      await loadAll();
+      showToast('Akaunti imeundwa');
     }catch(e){ showToast(e.message); }
   });
 
