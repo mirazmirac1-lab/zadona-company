@@ -629,6 +629,47 @@
       <div class="modal-actions">
         <button class="btn-save" id="loginSave" style="width:100%;">Ingia</button>
       </div>
+      <p style="text-align:center; margin-top:16px;"><a href="#" id="forgotPasswordLink" style="color:var(--rust); text-decoration:none; font-size:0.9rem;">Umesahau nywila?</a></p>
+    </div>
+  </div>
+
+  <!-- Forgot Password Modal -->
+  <div class="modal-bg hidden" id="forgotPasswordModalBg">
+    <div class="modal">
+      <h2 id="forgotPasswordTitle">Badilisha Nywila</h2>
+      
+      <!-- Step 1: Enter Phone -->
+      <div id="forgotPasswordStep1">
+        <div class="field">
+          <label>Namba ya Simu</label>
+          <input type="text" id="forgotPasswordPhone" placeholder="2557xx xxx xxx">
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="forgotPasswordCancel">Rudi</button>
+          <button class="btn-save" id="forgotPasswordRequestBtn">Tuma Reset Code</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Enter Reset Code -->
+      <div id="forgotPasswordStep2" style="display:none;">
+        <div class="field">
+          <label>Reset Code (iliyotumwa)</label>
+          <input type="text" id="resetCode" placeholder="XXXXXX" maxlength="6">
+          <div class="meta">Kama hukuwa na SMS, angalia browser console (Ctrl+Shift+I)</div>
+        </div>
+        <div class="field">
+          <label>Nywila Mpya</label>
+          <input type="password" id="newPasswordReset" placeholder="Ingiza nywila mpya">
+        </div>
+        <div class="field">
+          <label>Rudia Nywila Mpya</label>
+          <input type="password" id="confirmPasswordReset" placeholder="Rudia nywila mpya">
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="forgotPasswordBackBtn">Rudi</button>
+          <button class="btn-save" id="forgotPasswordConfirmBtn">Badilisha Nywila</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1160,6 +1201,68 @@
       document.getElementById('newPassword').value='';
       document.getElementById('confirmPassword').value='';
       showToast('Nywila imebadilishwa');
+    }catch(e){ showToast(e.message); }
+  });
+
+  // Forgot password modal management
+  let forgotPasswordResetPhone = '';
+  const forgotPasswordModalBg = document.getElementById('forgotPasswordModalBg');
+
+  document.getElementById('forgotPasswordLink').addEventListener('click', (e)=>{
+    e.preventDefault();
+    els.loginModalBg.classList.add('hidden');
+    forgotPasswordModalBg.classList.remove('hidden');
+    document.getElementById('forgotPasswordStep1').style.display = 'block';
+    document.getElementById('forgotPasswordStep2').style.display = 'none';
+    document.getElementById('forgotPasswordPhone').value = '';
+    document.getElementById('resetCode').value = '';
+    document.getElementById('newPasswordReset').value = '';
+    document.getElementById('confirmPasswordReset').value = '';
+  });
+
+  document.getElementById('forgotPasswordCancel').addEventListener('click', ()=>{
+    forgotPasswordModalBg.classList.add('hidden');
+    els.loginModalBg.classList.remove('hidden');
+  });
+
+  document.getElementById('forgotPasswordBackBtn').addEventListener('click', ()=>{
+    document.getElementById('forgotPasswordStep1').style.display = 'block';
+    document.getElementById('forgotPasswordStep2').style.display = 'none';
+    document.getElementById('resetCode').value = '';
+    document.getElementById('newPasswordReset').value = '';
+    document.getElementById('confirmPasswordReset').value = '';
+  });
+
+  document.getElementById('forgotPasswordRequestBtn').addEventListener('click', async ()=>{
+    const phone = document.getElementById('forgotPasswordPhone').value.trim();
+    if(!phone){ showToast('Jaza namba ya simu'); return; }
+    try{
+      const data = await api('/forgot-password', { method:'POST', body: JSON.stringify({ phone }) });
+      forgotPasswordResetPhone = phone;
+      if(data.resetCode){
+        console.log('Reset Code:', data.resetCode);
+        showToast('Reset code: ' + data.resetCode + ' (angalia console)');
+      }
+      document.getElementById('forgotPasswordStep1').style.display = 'none';
+      document.getElementById('forgotPasswordStep2').style.display = 'block';
+    }catch(e){ showToast(e.message); }
+  });
+
+  document.getElementById('forgotPasswordConfirmBtn').addEventListener('click', async ()=>{
+    const resetCode = document.getElementById('resetCode').value.trim().toUpperCase();
+    const newPassword = document.getElementById('newPasswordReset').value;
+    const confirmPassword = document.getElementById('confirmPasswordReset').value;
+    if(!resetCode || !newPassword || !confirmPassword){ showToast('Jaza reset code na nywila mpya'); return; }
+    if(newPassword !== confirmPassword){ showToast('Nywila mpya hazilingani'); return; }
+    if(newPassword.length < 4){ showToast('Nywila lazima iwe na herufi 4 au zaidi'); return; }
+    try{
+      await api('/reset-password', { method:'POST', body: JSON.stringify({ phone: forgotPasswordResetPhone, resetCode, newPassword }) });
+      forgotPasswordModalBg.classList.add('hidden');
+      els.loginModalBg.classList.remove('hidden');
+      document.getElementById('loginFullName').value='';
+      document.getElementById('loginPhone').value='';
+      document.getElementById('loginPassword').value='';
+      showToast('Nywila imebadilishwa. Sasa ingia kwa nywila mpya');
     }catch(e){ showToast(e.message); }
   });
 

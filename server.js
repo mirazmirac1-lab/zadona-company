@@ -118,6 +118,22 @@ async function requireHeadquarter(req, res, next) {
   });
 }
 
+// Password reset storage (temporary codes expire after 30 minutes)
+const passwordResetCodes = {};
+
+function generateResetCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function cleanExpiredCodes() {
+  const now = Date.now();
+  for (const phone in passwordResetCodes) {
+    if (now - passwordResetCodes[phone].timestamp > 30 * 60 * 1000) {
+      delete passwordResetCodes[phone];
+    }
+  }
+}
+
 // ---------- Auth routes ----------
 app.post('/api/login', requireAuth, async (req, res) => {
   try {
@@ -208,6 +224,62 @@ app.post('/api/change-password', requireAuth, async (req, res) => {
     }
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPassword(newPassword), user.id]);
     res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kubadilisha nywila' });
+  }
+});
+
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { phone } = req.body || {};
+    if (!phone) {
+      return res.status(400).json({ error: 'Namba ya simu inahitajika' });
+    }
+    
+    const { rows } = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (rows.length === 0) {
+      // Don't reveal if phone doesn't exist
+      return res.json({ message: 'If phone exists, a reset code will be sent' });
+    }
+
+    cleanExpiredCodes();
+    const code = generateResetCode();
+    passwordResetCodes[phone] = { code, timestamp: Date.now() };
+
+    // In production, this would be sent via SMS. For now, return it in response.
+    res.json({ message: 'Reset code sent', resetCode: code });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Imeshindwa kutuma reset code' });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { phone, resetCode, newPassword } = req.body || {};
+    if (!phone || !resetCode || !newPassword) {
+      return res.status(400).json({ error: 'Namba ya simu, reset code, na nywila mpya zinahitajika' });
+    }
+
+    if (String(newPassword).length < 4) {
+      return res.status(400).json({ error: 'Nywila mpya lazima iwe na herufi 4 au zaidi' });
+    }
+
+    cleanExpiredCodes();
+    const stored = passwordResetCodes[phone];
+    if (!stored || stored.code !== resetCode) {
+      return res.status(401).json({ error: 'Reset code si sahihi au umeishia muda' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Mtumiaji haipo' });
+    }
+
+    await pool.query('UPDATE users SET password_hash = $1 WHERE phone = $2', [hashPassword(newPassword), phone]);
+    delete passwordResetCodes[phone];
+    res.json({ success: true, message: 'Nywila imebadilishwa' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Imeshindwa kubadilisha nywila' });
