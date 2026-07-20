@@ -28,6 +28,12 @@ zadona-app/
    ```
 2. Copy `.env.example` to `.env` and point `DATABASE_URL` at a local
    PostgreSQL database (create one first, e.g. `createdb zadona`).
+   Optionally add Twilio SMS settings to deliver password reset codes by phone:
+   ```
+   TWILIO_ACCOUNT_SID=your_account_sid
+   TWILIO_AUTH_TOKEN=your_auth_token
+   TWILIO_FROM_PHONE=+1234567890
+   ```
 3. Start the app:
    ```
    npm start

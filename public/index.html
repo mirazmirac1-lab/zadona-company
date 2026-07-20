@@ -653,9 +653,9 @@
       <!-- Step 2: Enter Reset Code -->
       <div id="forgotPasswordStep2" style="display:none;">
         <div class="field">
-          <label>Reset Code (iliyotumwa)</label>
+          <label>Reset Code (iliyotumwa kwa SMS)</label>
           <input type="text" id="resetCode" placeholder="XXXXXX" maxlength="6">
-          <div class="meta">Kama hukuwa na SMS, angalia browser console (Ctrl+Shift+I)</div>
+          <div class="meta">Reset code utapokea moja kwa moja kwa namba yako ya simu.</div>
         </div>
         <div class="field">
           <label>Nywila Mpya</label>
@@ -1237,16 +1237,9 @@
     const phone = document.getElementById('forgotPasswordPhone').value.trim();
     if(!phone){ showToast('Jaza namba ya simu'); return; }
     try{
-      const data = await api('/forgot-password', { method:'POST', body: JSON.stringify({ phone }) });
-      forgotPasswordResetPhone = phone;
-      if(data.resetCode){
-        console.log('Reset Code:', data.resetCode);
-        showToast('Reset code: ' + data.resetCode + ' (angalia console)');
-      }
-      document.getElementById('forgotPasswordStep1').style.display = 'none';
-      document.getElementById('forgotPasswordStep2').style.display = 'block';
-    }catch(e){ showToast(e.message); }
-  });
+        await api('/forgot-password', { method:'POST', body: JSON.stringify({ phone }) });
+        forgotPasswordResetPhone = phone;
+        showToast('Reset code imelishwa kwa SMS. Tafadhali angalia simu yako.');
 
   document.getElementById('forgotPasswordConfirmBtn').addEventListener('click', async ()=>{
     const resetCode = document.getElementById('resetCode').value.trim().toUpperCase();

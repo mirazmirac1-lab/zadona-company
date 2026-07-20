@@ -1,9 +1,20 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const pool = require('./db');
+
+let fetchFn = global.fetch;
+if (!fetchFn) {
+  try {
+    const nodeFetch = require('node-fetch');
+    fetchFn = nodeFetch.default || nodeFetch;
+  } catch (err) {
+    fetchFn = null;
+  }
+}
 
 const app = express();
 app.use(cors());
@@ -69,8 +80,69 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_FROM_PHONE = process.env.TWILIO_FROM_PHONE;
+
 function normalizeName(name) {
   return String(name || '').trim().toLowerCase();
+}
+
+function normalizePhoneForSms(phone) {
+  const cleaned = String(phone || '').trim().replace(/[^+\d]/g, '');
+  if (!cleaned) return '';
+  return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
+}
+
+async function sendSms(phone, message) {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM_PHONE) {
+    console.warn('SMS not sent: Twilio configuration is missing. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_PHONE.');
+    return false;
+  }
+
+  if (!fetchFn) {
+    console.warn('SMS not sent: fetch is not available in this Node environment. Install node-fetch or use Node 18+.');
+    return false;
+  }
+
+  const to = normalizePhoneForSms(phone);
+  if (!to) {
+    console.warn('SMS not sent: invalid destination phone number', phone);
+    return false;
+  }
+
+  const body = new URLSearchParams({
+    To: to,
+    From: TWILIO_FROM_PHONE,
+    Body: message
+  });
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(TWILIO_ACCOUNT_SID)}/Messages.json`;
+  const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+
+  try {
+    const response = await fetchFn(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const payload = await response.text();
+      console.error('Twilio SMS send failed:', response.status, payload);
+      return false;
+    }
+
+    const payload = await response.json();
+    console.log('Twilio SMS sent to', to, 'sid', payload.sid);
+    return true;
+  } catch (err) {
+    console.error('Twilio SMS send error:', err);
+    return false;
+  }
 }
 
 function isZaudiaAccount(fullName) {
@@ -247,8 +319,10 @@ app.post('/api/forgot-password', async (req, res) => {
     const code = generateResetCode();
     passwordResetCodes[phone] = { code, timestamp: Date.now() };
 
-    // In production, this would be sent via SMS. For now, return it in response.
-    res.json({ message: 'Reset code sent', resetCode: code });
+    const message = `Zadona reset code: ${code}. It expires in 30 minutes.`;
+    await sendSms(phone, message);
+
+    res.json({ message: 'If phone exists, a reset code will be sent' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Imeshindwa kutuma reset code' });
